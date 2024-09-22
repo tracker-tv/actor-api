@@ -1,16 +1,27 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tracker-tv/actor-api/internal/data"
 )
 
+type application struct {
+	logger *slog.Logger
+}
+
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	app := &application{
+		logger: logger,
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/actors", func(w http.ResponseWriter, r *http.Request) {
 		pgxTs := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
@@ -22,13 +33,13 @@ func main() {
 			{ID: 2, Name: "Jane Doe", CreatedAt: pgtype.Timestamp{Time: parsedTime, Valid: true}},
 		}
 
-		js, err := json.Marshal(actors)
+		err := app.writeJSON(w, http.StatusOK, actors, nil)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			app.serverErrorResponse(w, r, err)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(js)
 	})
+
+	logger.Info("starting server", "port", 8080)
 
 	log.Fatalln(http.ListenAndServe(":8080", mux))
 }
