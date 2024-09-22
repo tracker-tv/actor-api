@@ -1,0 +1,11 @@
+FROM alpine:3.19.0 AS builder
+ADD "https://github.com/pressly/goose/releases/download/v3.22.1/goose_linux_x86_64" /tmp/goose
+RUN chmod +x /tmp/goose
+
+COPY ./migrations /migrations
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=builder /tmp/goose /bin/goose
+COPY --from=builder /migrations /migrations
+
