@@ -1,43 +1,51 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/caarlos0/env/v11"
+	"github.com/tracker-tv/actor-api/internal/config"
 	"github.com/tracker-tv/actor-api/internal/data"
+	"github.com/tracker-tv/actor-api/internal/database"
 )
 
 type application struct {
 	logger *slog.Logger
+	models data.Models
 }
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	var cfg config.Config
+	err := env.Parse(&cfg)
+	if err != nil {
+		logger.Error("failed to parse config", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("starting database connection")
+
+	db, err := database.OpenDB(cfg)
+	if err != nil {
+		logger.Error("failed to open database connection", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close(context.Background())
+
+	logger.Info("database connection established")
+
 	app := &application{
 		logger: logger,
+		models: data.NewModels(db),
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/actors", func(w http.ResponseWriter, r *http.Request) {
-		pgxTs := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
-		formattedStr := pgxTs.Time.Format("2006-01-02:15:04:05")
-		parsedTime, _ := time.Parse("2006-01-02:15:04:05", formattedStr)
-
-		actors := []data.Actor{
-			{ID: 1, Name: "John Doe", CreatedAt: pgtype.Timestamp{Time: parsedTime, Valid: true}},
-			{ID: 2, Name: "Jane Doe", CreatedAt: pgtype.Timestamp{Time: parsedTime, Valid: true}},
-		}
-
-		err := app.writeJSON(w, http.StatusOK, actors, nil)
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-		}
-	})
+	mux.HandleFunc("/v1/actors", app.GetActors)
 
 	logger.Info("starting server", "port", 8080)
 
