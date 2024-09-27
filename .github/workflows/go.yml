@@ -1,9 +1,6 @@
 name: Go
 
 on:
-  merge_group:
-    types:
-      - checks_requested
   pull_request:
     types:
       - opened
@@ -47,7 +44,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/prod'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/prod'
     needs: [test]
     permissions:
       contents: read
